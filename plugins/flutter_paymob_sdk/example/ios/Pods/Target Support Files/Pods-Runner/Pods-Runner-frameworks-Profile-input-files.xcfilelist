@@ -1,0 +1,3 @@
+${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh
+${BUILT_PRODUCTS_DIR}/flutter_paymob_sdk/flutter_paymob_sdk.framework
+${PODS_XCFRAMEWORKS_BUILD_DIR}/flutter_paymob_sdk/PaymobSDK.framework/PaymobSDK

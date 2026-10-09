@@ -1,0 +1,31 @@
+{
+  "name": "flutter_paymob_sdk",
+  "version": "1.0.0",
+  "summary": "A Flutter plugin for integrating Paymob payment gateway.",
+  "description": "A Flutter plugin for integrating Paymob payment gateway with native Android and iOS SDKs support.",
+  "homepage": "https://github.com/motazyusuf/flutter_paymob_sdk",
+  "license": {
+    "file": "../LICENSE"
+  },
+  "authors": {
+    "Moataz Medhat Yusuf": "motazyusuf@gmail.com"
+  },
+  "source": {
+    "path": "."
+  },
+  "source_files": "Classes/**/*",
+  "prepare_command": "rm -rf Frameworks/PaymobSDK.xcframework\nmkdir -p Frameworks\ncurl -L -o Frameworks/PaymobSDK.xcframework.zip https://github.com/motazyusuf/paymob-ios-repo/releases/download/1.0.20/PaymobSDK.xcframework.zip\nunzip -o Frameworks/PaymobSDK.xcframework.zip -d Frameworks/\nrm Frameworks/PaymobSDK.xcframework.zip",
+  "vendored_frameworks": "Frameworks/PaymobSDK.xcframework",
+  "dependencies": {
+    "Flutter": []
+  },
+  "platforms": {
+    "ios": "13.0"
+  },
+  "pod_target_xcconfig": {
+    "DEFINES_MODULE": "YES",
+    "EXCLUDED_ARCHS[sdk=iphonesimulator*]": "i386"
+  },
+  "swift_versions": "5.0",
+  "swift_version": "5.0"
+}

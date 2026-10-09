@@ -1,0 +1,476 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
+import 'package:ride_sharing_user_app/common_widgets/button_widget.dart';
+import 'package:ride_sharing_user_app/util/app_constants.dart';
+import 'package:ride_sharing_user_app/common_widgets/expandable_bottom_sheet.dar.dart';
+import 'package:ride_sharing_user_app/common_widgets/swipable_button_widget/slider_button_widget.dart';
+import 'package:ride_sharing_user_app/features/dashboard/controllers/bottom_menu_controller.dart';
+import 'package:ride_sharing_user_app/features/home/widgets/banner_shimmer.dart';
+import 'package:ride_sharing_user_app/features/location/controllers/location_controller.dart';
+import 'package:ride_sharing_user_app/features/map/controllers/map_controller.dart';
+import 'package:ride_sharing_user_app/features/map/widget/ride_cancelation_radio_button.dart';
+import 'package:ride_sharing_user_app/features/parcel/widgets/otp_widget.dart';
+import 'package:ride_sharing_user_app/features/parcel/widgets/route_widget.dart';
+import 'package:ride_sharing_user_app/features/parcel/widgets/tolltip_widget.dart';
+import 'package:ride_sharing_user_app/features/ride/controllers/ride_controller.dart';
+import 'package:ride_sharing_user_app/features/ride/widgets/estimated_fare_and_distance.dart';
+import 'package:ride_sharing_user_app/features/trip/controllers/trip_controller.dart';
+import 'package:ride_sharing_user_app/features/trip/widgets/rider_details.dart';
+import 'package:ride_sharing_user_app/localization/localization_controller.dart';
+import 'package:ride_sharing_user_app/util/dimensions.dart';
+import 'package:ride_sharing_user_app/util/styles.dart';
+import 'package:ride_sharing_user_app/helper/map_bound_helper.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+class OtpSentBottomSheet extends StatefulWidget {
+  final String firstRoute;
+  final String secondRoute;
+  final GlobalKey<ExpandableBottomSheetState> expandableKey;
+
+  const OtpSentBottomSheet(
+      {super.key,
+      required this.firstRoute,
+      required this.secondRoute,
+      required this.expandableKey});
+
+  @override
+  State<OtpSentBottomSheet> createState() => _OtpSentBottomSheetState();
+}
+
+class _OtpSentBottomSheetState extends State<OtpSentBottomSheet> {
+  bool _isLoadingDirections = false;
+
+  Future<void> _openGoogleMapsWithDirections() async {
+    if (_isLoadingDirections) return;
+
+    setState(() {
+      _isLoadingDirections = true;
+    });
+
+    try {
+      // 1. Get current location permission and services
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        Get.snackbar(
+          'Location Service Disabled',
+          'Please enable location services to get directions',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          Get.snackbar(
+            'Location Permission Denied',
+            'Please grant location permission to get directions',
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        Get.snackbar(
+          'Location Permission Denied',
+          'Location permissions are permanently denied, we cannot request permissions.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // Get current position
+      Position currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // 2. Fetch Trip details from GetX controller
+      final tripDetails = Get.find<RideController>().tripDetails;
+      String googleMapsUrl = '';
+
+      double? targetLat;
+      double? targetLng;
+
+      // 3. Determine target endpoint based on Trip Type rule
+      if (tripDetails?.type == 'carpool') {
+        if (tripDetails?.closestPcikupPoint != null &&
+            tripDetails!.closestPcikupPoint!.length >= 2) {
+          targetLat = tripDetails.closestPcikupPoint![1];
+          targetLng = tripDetails.closestPcikupPoint![0];
+        }
+      } else {
+        if (tripDetails?.pickupCoordinates != null &&
+            tripDetails!.pickupCoordinates!.coordinates != null &&
+            tripDetails.pickupCoordinates!.coordinates!.length >= 2) {
+          targetLat = tripDetails.pickupCoordinates!.coordinates![1];
+          targetLng = tripDetails.pickupCoordinates!.coordinates![0];
+        }
+      }
+
+      if (targetLat != null && targetLng != null) {
+        final corrected = MapBoundHelper.toCorrectLatLng(targetLat, targetLng);
+        targetLat = corrected.latitude;
+        targetLng = corrected.longitude;
+      }
+
+      // 4. Construct proper Google Maps Universal Directions URL
+      if (targetLat != null && targetLng != null) {
+        // Formulating official maps directions structure
+        googleMapsUrl =
+            'https://www.google.com/maps/dir/?api=1&origin=${currentPosition.latitude},${currentPosition.longitude}&destination=$targetLat,$targetLng&travelmode=driving';
+      } else if (tripDetails?.pickupAddress != null &&
+          tripDetails!.pickupAddress!.isNotEmpty) {
+        // Fallback to text address string if coordinates are missing
+        final String encodedAddress =
+            Uri.encodeComponent(tripDetails.pickupAddress!);
+        googleMapsUrl =
+            'https://www.google.com/maps/dir/?api=1&origin=${currentPosition.latitude},${currentPosition.longitude}&destination=$encodedAddress&travelmode=driving';
+      } else {
+        Get.snackbar(
+          'No Target Location',
+          'Target pickup location is not available',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      // 5. Launch Google Maps application externally
+      final Uri uri = Uri.parse(googleMapsUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        Get.snackbar(
+          'Error',
+          'Could not open Google Maps app',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('Error opening Google Maps: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to open Google Maps: ${e.toString()}',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      setState(() {
+        _isLoadingDirections = false;
+      });
+    }
+  }
+
+  int currentState = 0;
+  @override
+  Widget build(BuildContext context) {
+    return GetBuilder<RideController>(builder: (rideController) {
+      return GetBuilder<LocationController>(builder: (locationController) {
+        return currentState == 0
+            ? rideController.tripDetails != null
+                ? Column(children: [
+                    TollTipWidget(
+                      title:
+                          // '${(rideController.remainingDistanceModel.isNotEmpty) ? (rideController.remainingDistanceModel[0].duration) ?? '0' : '0'} ${'away'.tr}'
+                          '${rideController.tripDetails?.formatedEstamitedTimeInMinutes ?? 0} ${'away'.tr}',
+                    ),
+                    const SizedBox(
+                      height: Dimensions.paddingSizeDefault,
+                    ),
+                    const OtpWidget(fromPage: true),
+                    const ActivityScreenRiderDetails(),
+                    const SizedBox(height: Dimensions.paddingSizeDefault),
+                    const EstimatedFareAndDistance(),
+                    const SizedBox(height: Dimensions.paddingSizeDefault),
+                    if (rideController.tripDetails?.type == 'carpool')
+                      Column(children: [
+                        Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: Dimensions.paddingSizeDefault,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: Dimensions.paddingSizeDefault,
+                                    vertical: Dimensions.paddingSizeSmall,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(
+                                        Dimensions.radiusDefault),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.location_on,
+                                        color: Theme.of(context).primaryColor,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(
+                                          width: Dimensions.paddingSizeSmall),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Pickup Location',
+                                              style: textMedium.copyWith(
+                                                fontSize:
+                                                    Dimensions.fontSizeSmall,
+                                                color: Theme.of(context)
+                                                    .primaryColor,
+                                              ),
+                                            ),
+                                            Text(
+                                              rideController.tripDetails
+                                                      ?.pickupAddress ??
+                                                  'Location not available',
+                                              style: textRegular.copyWith(
+                                                fontSize: Dimensions
+                                                    .fontSizeExtraSmall,
+                                                color: Colors.grey[600],
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(
+                                  width: Dimensions.paddingSizeSmall),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor,
+                                  borderRadius: BorderRadius.circular(
+                                      Dimensions.radiusDefault),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Theme.of(context)
+                                          .primaryColor
+                                          .withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: _isLoadingDirections
+                                        ? null
+                                        : _openGoogleMapsWithDirections,
+                                    borderRadius: BorderRadius.circular(
+                                        Dimensions.radiusDefault),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(
+                                          Dimensions.paddingSizeDefault),
+                                      child: _isLoadingDirections
+                                          ? SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                        Color>(Colors.white),
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.directions,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(
+                          height: Dimensions.paddingSizeDefault,
+                        ),
+                      ]),
+                    if (rideController.tripDetails?.type == 'parcel')
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Dimensions.paddingSizeDefault,
+                            vertical: Dimensions.paddingSizeExtraSmall),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: ButtonWidget(
+                            fontSize: Dimensions.fontSizeSmall,
+                            buttonText: 'track_now'.tr,
+                            width: 80,
+                            height: 32,
+                            onPressed: () => launchUrl(Uri.parse(
+                                _getParcelTrackUrl(
+                                    rideController.tripDetails?.refId))),
+                          ),
+                        ),
+                      ),
+                    RouteWidget(
+                        totalDistance: rideController
+                                .tripDetails?.estimatedDistance
+                                .toString() ??
+                            '',
+                        fromAddress:
+                            rideController.tripDetails?.pickupAddress ?? "",
+                        toAddress:
+                            rideController.tripDetails?.destinationAddress ??
+                                '',
+                        extraOneAddress: widget.firstRoute,
+                        extraTwoAddress: widget.secondRoute,
+                        entrance: rideController.tripDetails?.entrance ?? ''),
+                    const SizedBox(height: Dimensions.paddingSizeDefault),
+                    Center(
+                      child: SliderButton(
+                        action: () {
+                          currentState = 1;
+                          widget.expandableKey.currentState?.expand();
+                          setState(() {});
+                        },
+                        label: Text(
+                          'cancel_ride'.tr,
+                          style:
+                              TextStyle(color: Theme.of(context).primaryColor),
+                        ),
+                        dismissThresholds: 0.5,
+                        dismissible: false,
+                        shimmer: false,
+                        width: 1170,
+                        height: 40,
+                        buttonSize: 40,
+                        radius: 20,
+                        icon: Center(
+                            child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Theme.of(context).cardColor),
+                          child: Center(
+                            child: Icon(
+                              Get.find<LocalizationController>().isLtr
+                                  ? Icons.arrow_forward_ios_rounded
+                                  : Icons.keyboard_arrow_left,
+                              color: Colors.grey,
+                              size: 20.0,
+                            ),
+                          ),
+                        )),
+                        isLtr: Get.find<LocalizationController>().isLtr,
+                        boxShadow: const BoxShadow(blurRadius: 0),
+                        buttonColor: Colors.transparent,
+                        backgroundColor:
+                            Theme.of(context).primaryColor.withOpacity(0.15),
+                        baseColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ])
+                : const Column(children: [BannerShimmer(), BannerShimmer()])
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    height: Dimensions.paddingSizeSmall,
+                  ),
+                  Text(
+                    'rider_arrived'.tr,
+                    style: textSemiBold.copyWith(
+                        color: Theme.of(context).primaryColor,
+                        fontSize: Dimensions.fontSizeSmall),
+                  ),
+                  const SizedBox(
+                    height: Dimensions.paddingSizeSmall,
+                  ),
+                  const CancellationRadioButton(
+                    isOngoing: false,
+                  ),
+                  const SizedBox(height: Dimensions.paddingSizeLarge),
+                  rideController.isLoading
+                      ? SpinKitCircle(
+                          color: Theme.of(context).primaryColor, size: 40.0)
+                      : Row(children: [
+                          Expanded(
+                              child: ButtonWidget(
+                                  buttonText: 'no_continue_trip'.tr,
+                                  showBorder: true,
+                                  transparent: true,
+                                  backgroundColor:
+                                      Theme.of(context).primaryColor,
+                                  borderColor: Theme.of(context).primaryColor,
+                                  textColor: Theme.of(context).cardColor,
+                                  radius: Dimensions.paddingSizeSmall,
+                                  onPressed: () {
+                                    currentState = 0;
+                                    setState(() {});
+                                  })),
+                          const SizedBox(
+                            width: Dimensions.paddingSizeSmall,
+                          ),
+                          Expanded(
+                              child: ButtonWidget(
+                            buttonText: 'submit'.tr,
+                            showBorder: true,
+                            transparent: true,
+                            textColor:
+                                Get.isDarkMode ? Colors.white : Colors.black,
+                            borderColor: Theme.of(context).hintColor,
+                            radius: Dimensions.paddingSizeSmall,
+                            onPressed: () {
+                              Get.find<RideController>().stopLocationRecord();
+                              rideController
+                                  .tripStatusUpdate(
+                                      rideController.tripDetails!.id!,
+                                      'cancelled',
+                                      'ride_request_cancelled_successfully',
+                                      Get.find<TripController>()
+                                          .rideCancellationReasonList!
+                                          .data!
+                                          .acceptedRide![Get.find<
+                                              TripController>()
+                                          .rideCancellationCauseCurrentIndex])
+                                  .then((value) {
+                                if (value?.statusCode == 200) {
+                                  Get.find<MapController>()
+                                      .notifyMapController();
+                                  Get.find<BottomMenuController>()
+                                      .navigateToDashboard();
+                                }
+                              });
+                            },
+                          )),
+                        ])
+                ],
+              );
+      });
+    });
+  }
+
+  String _getParcelTrackUrl(String? refId) =>
+      '${AppConstants.baseUrl}/track-parcel/$refId';
+}

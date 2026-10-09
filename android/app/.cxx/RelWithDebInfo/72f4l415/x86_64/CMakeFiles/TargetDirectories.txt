@@ -1,0 +1,2 @@
+/Users/osama/Documents/flutterApps/ur_turn_user_app/android/app/.cxx/RelWithDebInfo/72f4l415/x86_64/CMakeFiles/edit_cache.dir
+/Users/osama/Documents/flutterApps/ur_turn_user_app/android/app/.cxx/RelWithDebInfo/72f4l415/x86_64/CMakeFiles/rebuild_cache.dir

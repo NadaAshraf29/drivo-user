@@ -1,0 +1,10 @@
+import 'package:image_picker/image_picker.dart';
+import 'package:ride_sharing_user_app/data/api_client.dart';
+
+abstract class ProfileServiceInterface{
+  Future<dynamic> getProfileInfo();
+  Future<dynamic> updateProfileInfo(String firstName, String lastname, String identification, String idType, String? gender, XFile? profile, List<MultipartBody>? identityImage);
+  Future<dynamic> getEmergencyContact();
+  Future<dynamic> saveEmergencyContact(String name, String phone);
+  Future<dynamic> sendSos({String? tripId, double? latitude, double? longitude, String? note});
+}

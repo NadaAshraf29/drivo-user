@@ -1,0 +1,10 @@
+framework module flutter_paymob_sdk {
+  umbrella header "flutter_paymob_sdk-umbrella.h"
+
+  export *
+  module * { export * }
+}
+
+module flutter_paymob_sdk.Swift {
+  header "flutter_paymob_sdk-Swift.h"
+}

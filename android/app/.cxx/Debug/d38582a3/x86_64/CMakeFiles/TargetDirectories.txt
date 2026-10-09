@@ -1,0 +1,2 @@
+E:/Fassla/drivo_user/android/app/.cxx/Debug/d38582a3/x86_64/CMakeFiles/edit_cache.dir
+E:/Fassla/drivo_user/android/app/.cxx/Debug/d38582a3/x86_64/CMakeFiles/rebuild_cache.dir
